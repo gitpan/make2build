@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 use strict;
 #use warnings; 
