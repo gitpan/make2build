@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.12';
+$VERSION = '0.13';
 
 =head1 NAME
 
@@ -115,7 +115,14 @@ Code that follows converted Module::Build arguments.
 
 =item B<co-opting WriteMakefile()>
 
+In order to convert arguments, a typeglob from WriteMakefile() to an internal
+sub will be set; subsequently Makefile.PL will be executed and the
+arguments are then accessible to the internal sub.
+
 =item B<Data::Dumper>
+
+Converted ExtUtils::MakeMaker arguments will be dumped by 
+Data::Dumper's C<Dump()> and are then furtherly processed.
 
 =back
 
@@ -181,7 +188,7 @@ sub _get_data {
 	split /#\s+.*\s+-\n/;      #  -
     };
 
-    (undef) = shift @data;         # Superfluos items			
+    (undef) = shift @data;         # superfluosity			
     chomp $data[-1]; $/ = "\n";
     chomp $data[-1]; 
     
@@ -258,25 +265,25 @@ sub _sort {
     do {
         $is_sorted = 1;
 	
-	SORT:
-        for (my $i = 0; $i < @$args; $i++) {   
-            my ($arg) = keys %{$args->[$i]};
+        SORT:
+          for (my $i = 0; $i < @$args; $i++) {   
+              my ($arg) = keys %{$args->[$i]};
 	    
-	    unless (defined $sort_order{$arg}) {
-	       push @unsorted, splice( @$args, $i, 1 );
-	       next;
-	    }
+	      unless (defined $sort_order{$arg}) {
+	          push @unsorted, splice( @$args, $i, 1 );
+	          next;
+	      }
 	    
-            if ($i != $sort_order{$arg}) {
-                $is_sorted = 0;
+              if ($i != $sort_order{$arg}) {
+                  $is_sorted = 0;
 
-	        push @$args,                               # Move element $i to pos $Sort_order{$arg}
-		  splice( @$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
-		    splice( @$args, $i, 1 ) );             # the end. 
+	          push @$args,                               # Move element $i to pos $Sort_order{$arg}
+		    splice( @$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
+		      splice( @$args, $i, 1 ) );             # the end. 
 		    
-		last SORT;    
-	    }
-        }
+                  last SORT;    
+	      }
+          }
     } until ($is_sorted);
     
     push @$args, @unsorted;  
@@ -300,20 +307,20 @@ sub _write {
     
     local *F_BUILD; 
 
-    _open_build_pl();
+    my $selected = _open_build_pl();
 
     _write_begin();
    &_write_args;
     _write_end();
     
-    _close_build_pl();
+    _close_build_pl( $selected );
 }
 
 sub _open_build_pl {
     open F_BUILD, ">$BUILD_PL" or 
       die "Couldn't open $BUILD_PL: $!";
       
-    select F_BUILD;
+    return select F_BUILD;
 }
 
 sub _write_begin {
@@ -340,14 +347,13 @@ sub _write_args {
             };
 	    
 	    my ($whitespace) = $lines[0] =~ /^ (\s+) \w+/ox;     # Gather whitespace up to hash key in order 
-	    my $shorten = length $whitespace;                    # to recreate native Dump() intendation.
+	    my $shorten = length $whitespace;                    # to recreate native Dump() indentation.
 	    
             for my $line (@lines) {
 	        chomp $line;
 		
 	        $line =~ s/^ \s{$shorten} (.*) $/$1/ox;          # Remove additional whitespace
 		$line =~ s/(\S+) => (\w+)/'$1' => $2/o;          # Add quotes to hash keys within multiple hashes
-		#$line =~ s/'(\d+)' [, ] $/$1/ox;                # Remove quotes on version numbers
 	        $line .= ','    if ($line =~ /[\d+ \}] $/ox);    # Add comma where appropriate (version numbers, parentheses)
 		
 		_debug( "$INDENT$line\n" );
@@ -378,10 +384,12 @@ sub _write_end {
 }
 
 sub _close_build_pl {
+    my ($selected) = @_;
+
     close F_BUILD or
       die "Couldn't close $BUILD_PL: $!";
       
-    select STDOUT; 
+    select $selected; 
 }
 
 sub _debug { 
