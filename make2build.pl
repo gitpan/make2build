@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 use strict;
 #use warnings; 
@@ -8,10 +8,10 @@ use strict;
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
-our(
-    %convert,
-    %sorted_order,
+our (
+    %build,
     %default_args,
+    @sort_order,
     $header,
     $footer,
     $INTEND,
@@ -40,10 +40,10 @@ sub _run_makefile {
 }
 
 sub _convert {
-    local(
-          %convert, 
-          %sorted_order, 
+    local (
+          %build,           # Conversion table 
 	  %default_args,
+          @sort_order, 
 	  $header,
 	  $footer,
     );
@@ -52,91 +52,132 @@ sub _convert {
 
     print "Converting $MAKEFILE_PL -> $BUILD_PL\n";
     
-    _write(_dump(&_args_build));
+    _write( _dump( &_build_args ) );
 }
 
 sub _get_data {
     local $/ = '1;';
     local $_ = <DATA>;
     
-    my $regexp = qr/#\s+.*\s+?-\s+?\n/;    #  # description
+    my $regexp = qr{#\s+.*\s+?-\s+?\n};    #  # description
     my @data = split /$regexp/;            #  -
     
     shift @data;                           # Superfluos items			
     chomp $data[-1]; $/ = "\n";            
-    chomp $data[-1];
+    chomp $data[-1];                       
     
-    %convert         = split /\s+/, shift @data;
-    %sorted_order    = split /\s+/, shift @data;
+    %build           = split /\s+/, shift @data;
     %default_args    = split /\s+/, shift @data;
-    $header          = shift @data;
-    $footer          = shift @data;
+    @sort_order      = split /\s+/, shift @data;
+   ($header, 
+    $footer)         =                    @data;
 }
 
-sub _args_build { 
-    my %args_make = @_;
-    my @args_build = (\%default_args); 
+sub _build_args { 
+    my %make = @_;                           # Makefile.PL arguments
+    my @build_args = @{ _insert_args() };  
     
-    for my $arg (keys %args_make) {
-        next unless $convert{$arg};
+    for my $arg (keys %make) {
+        next unless $build{$arg};
 	
-        if (ref $args_make{$arg} eq 'HASH') {                             ### HASH CONVERSION
- 	    my(%subargs, $count_subargs);  
-	    my($total_subargs) = scalar %{$args_make{$arg}} =~ /^(.)/;    
+        if (ref $make{$arg} eq 'HASH') {                                ### HASH CONVERSION
+ 	    my (%subargs, $count_subargs);  
+	    my ($total_subargs) = %{ $make{$arg} } =~ /^(.)/;    
 	    
-	    for my $subarg (keys %{$args_make{$arg}}) {
-	        $subargs{$subarg} = $args_make{$arg}{$subarg};
+	    for my $subarg (keys %{ $make{$arg} }) {
+	        $subargs{$subarg} = $make{$arg}{$subarg};
 	    }
 	    
             my %tmphash;
-	    %{$tmphash{$convert{$arg}}} = %subargs;
-	    push @args_build, \%tmphash;
+	    
+	    %{ $tmphash{ $build{$arg} } } = %subargs;  
+	    push @build_args, \%tmphash;
 	}
-	elsif (ref $args_make{$arg} eq 'ARRAY') {                         ### ARRAY CONVERSION
+	elsif (ref $make{$arg} eq 'ARRAY') {                            ### ARRAY CONVERSION
 	    warn "Warning: $arg - array conversion not supported\n";
 	}
 	#
 	# One-dimensional hash values (scalars),
 	# don't justify as SCALARS.
 	#
-        elsif (ref $args_make{$arg} eq '') { 	                          ### SCALAR CONVERSION
+        elsif (ref $make{$arg} eq '') { 	                        ### SCALAR CONVERSION
 	    my %tmphash;
-	    $tmphash{$convert{$arg}} = $args_make{$arg};
-	    push @args_build, \%tmphash;
+	    
+	    $tmphash{ $build{$arg} } = $make{$arg};
+	    push @build_args, \%tmphash;
 	}
 	else { 
-	    warn "Warning: $arg - unknown type of argument";
+	    warn "Warning: $arg - unknown type of argument\n";
 	}
-    }    
+    }   
+    undef %build; 
     
-    @args_build = @{_sort(\@args_build)}    if %sorted_order;
+    _sort( \@build_args )    if @sort_order;
     
-    return \@args_build;
+    return \@build_args;
+}
+
+sub _insert_args {
+    my @insert_args;
+
+    while (my ($arg, $value) = each %default_args) {
+        my %tmphash;
+	
+	$tmphash{$arg} = $value;
+	push @insert_args, \%tmphash;
+    }
+    undef %default_args;
+    
+    return \@insert_args;
 }
 
 sub _sort {
-    my($args) = @_;
+    my ($args) = @_;
     
-    my $sorted;
+    my %sort_order;
+    {
+        my %have_args = map { keys %$_ => 1 } @$args;
+      
+        my $i = 0;
+        %sort_order = map {                    # Filter sort items, that we didn't receive as args,
+            $_ => $i++                         # and map the rest to according array indexes.
+        } 
+        (grep $have_args{$_}, @sort_order);    
+	
+	undef @sort_order;
+    }    
+    
+    my ($sorted, @unsorted);
+    
     do {
-        for (my $i = 0; $i < @$args; $i++) {
-	    $sorted = 1;    
-            my($arg) = keys %{$args->[$i]};
+        $sorted = 1; 
+	
+	ITER:
+        for (my $i = 0; $i < @$args; $i++) {   
+            my ($arg) = keys %{ $args->[$i] };
 	    
-            if ($i != $sorted_order{$arg}) {
+	    unless (defined $sort_order{$arg}) {
+	       push @unsorted, splice( @$args, $i, 1 );
+	    }
+	    
+            if ($i != $sort_order{$arg}) {
                 $sorted = 0;
-	        my $insert = splice(@$args, $i, 1);
-	        push @$args, $insert;
+ 
+	        push @$args,                               # Move element $i to pos $sort_order{$arg}
+		  splice( @$args, $sort_order{$arg}, 1,    # and the element at $sort_order{$arg} to 
+		    splice( @$args, $i, 1 ) );             # the end.
+		    
+		last ITER;    
 	    }
         }
     } 
     until ($sorted);
     
-    return $args;    
+    push @$args, @unsorted;  
 }
 
 sub _dump {
-    my($args) = @_;
+    my ($args) = @_;
 
     $Data::Dumper::Indent       = $DD_INDENT || 2;
     $Data::Dumper::Quotekeys    = 0;
@@ -156,7 +197,7 @@ sub _write {
     _open_build_pl();
 
     _write_header();
-    &_write_args;
+   &_write_args;
     _write_footer();
     
     _close_build_pl();
@@ -171,50 +212,51 @@ sub _open_build_pl {
 
 sub _write_header {
     local $INTEND = $INTEND;
-    chop($INTEND);
+    chop( $INTEND );
     
-    $header =~ s{\$INTEND}{$INTEND}g;
+    $header =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug("\n$BUILD_PL written:\n");
-    _debug($header);
+    _debug( "\n$BUILD_PL written:\n" );
+    _debug( $header );
     
-    print $header;
+    print $header; 
+    undef $header;
 }
 
 sub _write_args {
-    my($args) = @_;
+    my ($args) = @_;
     
     for my $arg (@$args) {                                        
-        if ($arg =~ m#=> \{#o) {                                     ### HASH OUTPUT
-	    $arg =~ s#^ \{ .*?\n (.*? \}) \s+ \} $#$1#osx;           # Remove redundant parentheses
+        if ($arg =~ /\Q => {/ox) {                               ### HASH OUTPUT
+	    $arg =~ s/^ \{ .*?\n (.*? \}) \s+ \} $/$1/osx;       # Remove redundant parentheses
 	    
-	    my @arg;        
-            while ($arg =~ s#^ (.*?\n) (.*) $#$2#osx) {              # One element per each line
-                push @arg, $1;
+	    my @lines;        
+            while ($arg =~ s/^ (.*?\n) (.*) $/$2/osx) {          # One element per each line
+                push @lines, $1;
             };
 	    
-	    my($whitespace) = $arg[0] =~ m#^ (\s+) (?: \w+)#ox;      # Gather whitespace up to hash key in order 
-	    my $shorten = length($whitespace);                       # to recreate native Dump() intendation.
+	    my ($whitespace) = $lines[0] =~ /^ (\s+) \w+/ox;     # Gather whitespace up to hash key in order 
+	    my $shorten = length( $whitespace );                 # to recreate native Dump() intendation.
 	    
-            for my $arg (@arg) {
-	        chomp($arg);
+            for my $line (@lines) {
+	        chomp( $line );
 		
-	        $arg =~ s#^ \s{$shorten} (.*) $#$1#ox;               # Remove additional whitespace
-		$arg =~ s#(\S+) => (\w+)#'$1' => $2#o;               # Add quotes to hash keys within multiple hashes
-		$arg =~ s# '(\d+)' (?: , | ) $#$1#ox;                # Remove quotes on version numbers
-	        $arg .= ','    if ($arg =~ m#(?: \d+ | \}) $#ox);    # Add comma where appropriate (version numbers, parentheses)
+	        $line =~ s/^ \s{$shorten} (.*) $/$1/ox;          # Remove additional whitespace
+		$line =~ s/(\S+) => (\w+)/'$1' => $2/o;          # Add quotes to hash keys within multiple hashes
+		$line =~ s/'(\d+)' [, ] $/$1/ox;                 # Remove quotes on version numbers
+	        $line .= ','    if ($line =~ /[\d+ \}] $/ox);    # Add comma where appropriate (version numbers, parentheses)
 		
-		_debug("$INTEND$arg\n");
+		_debug( "$INTEND$line\n" );
 		
-		print "$INTEND$arg\n";
+		print "$INTEND$line\n";
             }
 	}
-	else {                                                       ### SCALAR OUTPUT
-	    chomp($arg);
-	
-            $arg =~ s#^ \{ \s+ (.*) \s+ \} $#$1#ox;                  # Remove redundant parentheses
+	else {                                                   ### SCALAR OUTPUT
+	    chomp( $arg );
 	    
-	    _debug("$INTEND$arg,\n");
+            $arg =~ s/^ \{ \s+ (.*) \s+ \} $/$1/ox;              # Remove redundant parentheses
+	    
+	    _debug( "$INTEND$arg,\n" );
 	    
 	    print "$INTEND$arg,\n";
 	}
@@ -223,13 +265,14 @@ sub _write_args {
 
 sub _write_footer {
     local $INTEND = $INTEND;
-    chop($INTEND);
+    chop( $INTEND );
     
-    $footer =~ s{\$INTEND}{$INTEND}g;
+    $footer =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug($footer);
+    _debug( $footer );
     
     print $footer;
+    undef $footer;
 }
 
 sub _close_build_pl {
@@ -247,18 +290,20 @@ __DATA__
  
 # args conversion 
 - 
-NAME         module_name
-PREREQ_PM    requires
- 
-# sort order 
-- 
-module_name  0
-license      1
-requires     2
+NAME                  module_name
+PREREQ_PM             requires
  
 # default args 
 - 
-license    perl
+license               perl
+create_makefile_pl    passthrough
+ 
+# sort order 
+- 
+module_name
+license
+requires
+create_makefile_pl
  
 # header 
 - 
@@ -269,9 +314,32 @@ my $b = Module::Build->new
 $INTEND(
 # footer 
 - 
-$INTEND create_makefile_pl => 'traditional',
 $INTEND);
   
 $b->create_build_script;
 
 1;
+__END__
+
+=head1 NAME
+
+make2build - generate a Build.PL derived from Makefile.PL
+
+=head1 SYNOPSIS 
+
+ ./make2build.pl    # In the root directory of a ExtUtils::MakeMaker 
+                    # (or F<Makefile.PL>) based distribution 
+
+=head1 DESCRIPTION
+
+-
+
+=head1 SEE ALSO
+
+L<ExtUtils::MakeMaker>, L<Module::Build>
+
+=head1 AUTHOR
+
+Steven Schubiger		    
+
+=cut
