@@ -1,6 +1,6 @@
 --- #YAML:1.0
 module_name: make2build
-dist_version_from: script/make2build.pl
+dist_version_from: script/make2build.PL
 installdirs: site
 distribution_type: module
 license: perl

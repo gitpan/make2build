@@ -1,8 +1,16 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.06';
+$VERSION = '0.07';
 
 use strict;
+use vars qw(
+    $MAKEFILE_PL
+    $BUILD_PL
+    $DEBUG
+    $LEN_INTEND
+    $DD_INDENT
+    $DD_SORTKEYS
+);
 #use warnings; 
 #no warnings 'redefine';
 use Data::Dumper;
@@ -18,15 +26,15 @@ our (
 );
 
 
-my $MAKEFILE_PL    = 'Makefile.PL';
-my $BUILD_PL       = 'Build.PL';
+$MAKEFILE_PL    = 'Makefile.PL';
+$BUILD_PL       = 'Build.PL';
 
-my $DEBUG          = 0;
-my $LEN_INTEND     = 3;
+$DEBUG          = 0;
+$LEN_INTEND     = 3;
 
 # Data::Dumper
-my $DD_INDENT      = 2;
-my $DD_SORTKEYS    = 1;
+$DD_INDENT      = 2;
+$DD_SORTKEYS    = 1;
 
 
 *ExtUtils::MakeMaker::WriteMakefile = \&_convert;
@@ -81,15 +89,12 @@ sub _build_args {
         next unless $Build{$arg};
 	
         if (ref $make{$arg} eq 'HASH') {                                ### HASH CONVERSION
- 	    my (%subargs, $count_subargs);  
-	    my ($total_subargs) = %{$make{$arg}} =~ /^(.)/;    
-	    
+	    my %subargs;   
 	    for my $subarg (keys %{$make{$arg}}) {
 	        $subargs{$subarg} = $make{$arg}{$subarg};
 	    }
 	    
             my %tmphash;
-	    
 	    %{$tmphash{$Build{$arg}}} = %subargs;  
 	    push @build_args, \%tmphash;
 	}
@@ -102,7 +107,6 @@ sub _build_args {
 	#
         elsif (ref $make{$arg} eq '') { 	                        ### SCALAR CONVERSION
 	    my %tmphash;
-	    
 	    $tmphash{$Build{$arg}} = $make{$arg};
 	    push @build_args, \%tmphash;
 	}
@@ -139,10 +143,9 @@ sub _sort {
         my %have_args = map { keys %$_ => 1 } @$args;
 	
         my $i = 0;
-        %sort_order = map {    # Filter sort items, that we didn't receive as args,
-            $_ => $i++         # and map the rest to according array indexes.
-        } 
-        (grep $have_args{$_}, @Sort_order);    
+        %sort_order = map {                      # Filter sort items, that we didn't receive as args,
+            $_ => $i++                           # and map the rest to according array indexes.
+        } (grep $have_args{$_}, @Sort_order);    
 	
 	undef @Sort_order;
     }    
@@ -235,10 +238,10 @@ sub _write_args {
             };
 	    
 	    my ($whitespace) = $lines[0] =~ /^ (\s+) \w+/ox;     # Gather whitespace up to hash key in order 
-	    my $shorten = length( $whitespace );                 # to recreate native Dump() intendation.
+	    my $shorten = length $whitespace;                    # to recreate native Dump() intendation.
 	    
             for my $line (@lines) {
-	        chomp( $line );
+	        chomp $line;
 		
 	        $line =~ s/^ \s{$shorten} (.*) $/$1/ox;          # Remove additional whitespace
 		$line =~ s/(\S+) => (\w+)/'$1' => $2/o;          # Add quotes to hash keys within multiple hashes
@@ -251,7 +254,7 @@ sub _write_args {
             }
 	}
 	else {                                                   ### SCALAR OUTPUT
-	    chomp( $arg );
+	    chomp $arg;
 	    
             $arg =~ s/^ \{ \s+ (.*) \s+ \} $/$1/ox;              # Remove redundant parentheses
 	    
