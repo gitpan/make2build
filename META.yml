@@ -1,7 +1,10 @@
---- #YAML:1.0
-module_name: make2build
-dist_version_from: make2build.pl
-installdirs: site
+# http://module-build.sourceforge.net/META-spec.html
+#XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
+name:         make2build
+version:      0.16
+version_from: make2build.pl
+installdirs:  site
+requires:
+
 distribution_type: module
-license: perl
-dist_abstract: create a Build.PL derived from Makefile.PL
+generated_by: ExtUtils::MakeMaker version 6.17

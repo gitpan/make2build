@@ -1,5 +1,9 @@
 Revision history for Perl script make2build.
 
+0.16 2005/03/06
+ - A notice is placed in the created Build.PL, indicating
+   that it was created by make2build.
+
 0.12 2004/02/23
  - ExtUtils::MakeMaker arguments DISTNAME, VERSION, VERSION_FROM, 
    are converted and output sorted.

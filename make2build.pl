@@ -1,6 +1,7 @@
 #! /usr/bin/perl
 
-$VERSION = '0.15';
+our $VERSION = '0.16';
+our $NAME = 'make2build';
 
 =head1 NAME
 
@@ -13,11 +14,11 @@ make2build - create a Build.PL derived from Makefile.PL
 
 =head1 DESCRIPTION
 
-ExtUtils::MakeMaker has been a de-facto standard for the common distribution of Perl
-modules; Module::Build is expected to supersede ExtUtils::MakeMaker in some time.
+C<ExtUtils::MakeMaker> has been a de-facto standard for the common distribution of Perl
+modules; C<Module::Build> is expected to supersede C<ExtUtils::MakeMaker> in some time.
  
 The transition takes place slowly, as the converting process manually achieved 
-is yet an uncommon practice. This Makefile.PL parser is intended to ease the 
+is yet an uncommon practice. This F<Makefile.PL> parser is intended to ease the 
 transition process.
 
 =head1 OPTIONS
@@ -45,12 +46,12 @@ Indentation (character width). Defaults to 3.
 
 =item C<$DD_INDENT>
 
-Data::Dumper indendation mode. Mode 0 will be disregarded in favor
+C<Data::Dumper> indendation mode. Mode 0 will be disregarded in favor
 of 2. Defaults to 2.
 
 =item C<$DD_SORTKEYS>
 
-Data::Dumper sort keys. Defaults to 1.
+C<Data::Dumper> sort keys. Defaults to 1.
 
 =back
 
@@ -60,7 +61,7 @@ Data::Dumper sort keys. Defaults to 1.
 
 =item B<argument conversion>
 
-ExtUtils::MakeMaker arguments followed by their Module::Build equivalents. 
+C<ExtUtils::MakeMaker> arguments followed by their C<Module::Build> equivalents. 
 Converted data structures preserve their native structure,
 i.e. HASH -> HASH, etc.
 
@@ -72,7 +73,7 @@ i.e. HASH -> HASH, etc.
 
 =item B<default arguments>
 
-Module::Build default arguments may be specified as key / value pairs. 
+C<Module::Build> default arguments may be specified as key / value pairs. 
 Arguments attached to multidimensional structures are unsupported.
 
  license               perl
@@ -80,7 +81,7 @@ Arguments attached to multidimensional structures are unsupported.
 
 =item B<sorting order>
 
-Module::Build arguments are sorted as enlisted herein. Additional arguments, 
+C<Module::Build> arguments are sorted as enlisted herein. Additional arguments, 
 that don't occur herein, are lower prioritized and will be inserted in 
 unsorted order after preceedeingly sorted arguments.
 
@@ -94,7 +95,7 @@ unsorted order after preceedeingly sorted arguments.
 
 =item B<begin code>
 
-Code that preceeds converted Module::Build arguments.
+Code that preceeds converted C<Module::Build> arguments.
 
  use Module::Build;
 
@@ -103,7 +104,7 @@ Code that preceeds converted Module::Build arguments.
 
 =item B<end code>
 
-Code that follows converted Module::Build arguments.
+Code that follows converted C<Module::Build> arguments.
 
  $INDENT);
 
@@ -115,16 +116,16 @@ Code that follows converted Module::Build arguments.
 
 =over 4
 
-=item B<co-opting WriteMakefile()>
+=item B<co-opting C<WriteMakefile()>>
 
-In order to convert arguments, a typeglob from WriteMakefile() to an internal
+In order to convert arguments, a typeglob from C<WriteMakefile()> to an internal
 sub will be set; subsequently Makefile.PL will be executed and the
 arguments are then accessible to the internal sub.
 
 =item B<Data::Dumper>
 
-Converted ExtUtils::MakeMaker arguments will be dumped by 
-Data::Dumper's C<Dump()> and are then furtherly processed.
+Converted C<ExtUtils::MakeMaker> arguments will be dumped by 
+C<Data::Dumper's> C<Dump()> and are then furtherly processed.
 
 =back
 
@@ -145,12 +146,12 @@ use vars qw(
 );
 use warnings; 
 no warnings 'redefine';
+
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
 our ($INDENT, %Data);
      
-
 $MAKEFILE_PL    = 'Makefile.PL';
 $BUILD_PL       = 'Build.PL';
 
@@ -160,7 +161,6 @@ $LEN_INDENT     = 3;
 # Data::Dumper
 $DD_INDENT      = 2;
 $DD_SORTKEYS    = 1;
-
 
 *ExtUtils::MakeMaker::WriteMakefile = \&_convert;
 
@@ -174,12 +174,10 @@ sub _run_makefile {
 
 sub _convert {
     local %Data; 
-    
     _get_data();
     
     print "Converting $MAKEFILE_PL -> $BUILD_PL\n";
-    
-    _write( _dump( &_build_args ) );
+    _write(_dump(&_build_args));
 }
 
 sub _get_data {
@@ -233,7 +231,7 @@ sub _build_args {
 	}
     }
     
-    _sort( \@build_args )    if @{$Data{sort_order}};
+    _sort(\@build_args)    if @{$Data{sort_order}};
     
     return \@build_args;
 }
@@ -267,21 +265,20 @@ sub _sort {
     do {
         $is_sorted = 1;
 	
-        SORT:
-          for (my $i = 0; $i < @$args; $i++) {   
+          SORT: for (my $i = 0; $i < @$args; $i++) {   
               my ($arg) = keys %{$args->[$i]};
 	    
 	      unless (defined $sort_order{$arg}) {
-	          push @unsorted, splice( @$args, $i, 1 );
+	          push @unsorted, splice(@$args, $i, 1);
 	          next;
 	      }
 	    
               if ($i != $sort_order{$arg}) {
                   $is_sorted = 0;
 
-	          push @$args,                               # Move element $i to pos $Sort_order{$arg}
-		    splice( @$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
-		      splice( @$args, $i, 1 ) );             # the end. 
+	          push @$args,                              # Move element $i to pos $Sort_order{$arg}
+		    splice(@$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
+		      splice(@$args, $i, 1));               # the end. 
 		    
                   last SORT;    
 	      }
@@ -299,7 +296,7 @@ sub _dump {
     $Data::Dumper::Sortkeys     = $DD_SORTKEYS;
     $Data::Dumper::Terse        = 1;
     
-    my $d = Data::Dumper->new( $args );
+    my $d = Data::Dumper->new($args);
     
     return [ $d->Dump ];
 }
@@ -315,7 +312,7 @@ sub _write {
    &_write_args;
     _write_end();
     
-    _close_build_pl( $selected );
+    _close_build_pl($selected);
 }
 
 sub _open_build_pl {
@@ -326,14 +323,15 @@ sub _open_build_pl {
 }
 
 sub _write_begin {
-    chop( my $INDENT = $INDENT );
+    chop(my $INDENT = $INDENT);
     
     $Data{begin} =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug( "\n$BUILD_PL written:\n" );
-    _debug( $Data{begin} );
+    _debug("\n$BUILD_PL written:\n");
+    _debug($Data{begin});
     
-    print $Data{begin}; 
+    print "## Created by $NAME $VERSION\n";
+    print $Data{begin};
 }
 
 sub _write_args {
@@ -358,7 +356,7 @@ sub _write_args {
 		$line =~ s/(\S+) => (\w+)/'$1' => $2/o;          # Add quotes to hash keys within multiple hashes
 	        $line .= ','    if ($line =~ /[\d+ \}] $/ox);    # Add comma where appropriate (version numbers, parentheses)
 		
-		_debug( "$INDENT$line\n" );
+		_debug("$INDENT$line\n");
 		
 		print "$INDENT$line\n";
             }
@@ -368,7 +366,7 @@ sub _write_args {
 	    
             $arg =~ s/^ \{ \s+ (.*) \s+ \} $/$1/ox;              # Remove redundant parentheses
 	    
-	    _debug( "$INDENT$arg,\n" );
+	    _debug("$INDENT$arg,\n");
 	    
 	    print "$INDENT$arg,\n";
 	}
@@ -376,11 +374,11 @@ sub _write_args {
 }
 
 sub _write_end {
-    chop( my $INDENT = $INDENT );
+    chop(my $INDENT = $INDENT);
     
     $Data{end} =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug( $Data{end} );
+    _debug($Data{end});
     
     print $Data{end};
 }
