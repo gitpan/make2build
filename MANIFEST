@@ -3,3 +3,4 @@ make2build.pl
 MANIFEST			This list of files
 META.yml
 README
+t/make2build.t

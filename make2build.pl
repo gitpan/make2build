@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.13';
+$VERSION = '0.14';
 
 =head1 NAME
 
@@ -14,9 +14,11 @@ make2build - create a Build.PL derived from Makefile.PL
 =head1 DESCRIPTION
 
 ExtUtils::MakeMaker has been a de-facto standard for the common distribution of Perl
-modules; Module::Build is expected to supersede ExtUtils::MakeMaker in some time. 
+modules; Module::Build is expected to supersede ExtUtils::MakeMaker in some time.
+ 
 The transition takes place slowly, as the converting process manually achieved 
-is yet an uncommon practice. This parser is intended to ease the transition process.
+is yet an uncommon practice. This Makefile.PL parser is intended to ease the 
+transition process.
 
 =head1 OPTIONS
 
