@@ -1,5 +1,7 @@
+Build.PL
 Changes
 make2build.pl
+Makefile.PL
 MANIFEST			This list of files
 META.yml
 README

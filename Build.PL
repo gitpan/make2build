@@ -1,0 +1,18 @@
+## Created by make2build 0.17
+
+use Module::Build;
+
+my $b = Module::Build->new
+  (
+   module_name => 'make2build',
+   dist_version_from => 'make2build.pl',
+   requires => {},
+   recommends => {},
+   build_requires => {},
+   conflicts => {},
+   license => 'unknown',
+   create_makefile_pl => 'passthrough',
+   dist_author => 'Steven Schubiger <steven@accognoscere.org>',
+  );
+  
+$b->create_build_script;
