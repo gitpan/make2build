@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 use strict;
 #use warnings; 
@@ -103,7 +103,7 @@ sub _build_args {
         elsif (ref $make{$arg} eq '') { 	                        ### SCALAR CONVERSION
 	    my %tmphash;
 	    
-	    $tmphash{ $Build{$arg} } = $make{$arg};
+	    $tmphash{$Build{$arg}} = $make{$arg};
 	    push @build_args, \%tmphash;
 	}
 	else { 

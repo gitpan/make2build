@@ -4,3 +4,4 @@ MANIFEST			This list of files
 META.yml
 README
 script/make2build.PL
+t/00_perm.t
