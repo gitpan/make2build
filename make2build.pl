@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.09';
+$VERSION = '0.10';
 
 use strict;
 use vars qw(
@@ -11,20 +11,13 @@ use vars qw(
     $DD_INDENT
     $DD_SORTKEYS
 );
-#use warnings; 
-#no warnings 'redefine';
+use warnings; 
+no warnings 'redefine';
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
-our (
-     %Build,
-     %Default_args,
-     @Sort_order,
-     $Header,
-     $Footer,
-     $INTEND,
-);
-
+our ($INTEND, %Data);
+     
 
 $MAKEFILE_PL    = 'Makefile.PL';
 $BUILD_PL       = 'Build.PL';
@@ -48,16 +41,10 @@ sub _run_makefile {
 }
 
 sub _convert {
-    local (
-           %Build,           # Conversion table 
-	   %Default_args,
-           @Sort_order, 
-	   $Header,
-	   $Footer,
-    );
+    local %Data; 
     
     _get_data();
-
+    
     print "Converting $MAKEFILE_PL -> $BUILD_PL\n";
     
     _write( _dump( &_build_args ) );
@@ -66,26 +53,26 @@ sub _convert {
 sub _get_data {
     local $/ = '1;';
     local $_ = <DATA>;
-                                             #  # description
-    my @data = split /#\s+.*\s+?-\s+?\n/;    #  -
+                                        #  # description
+    my @data = split /#\s+.*\s+-\n/;    #  -
     
-    shift @data;                             # Superfluos items			
-    chomp $data[-1]; $/ = "\n";            
-    chomp $data[-1];                       
+    (undef) = shift @data;              # Superfluos items			
+    chomp $data[-1]; $/ = "\n";
+    chomp $data[-1]; 
     
-    %Build           = split /\s+/, shift @data;
-    %Default_args    = split /\s+/, shift @data;
-    @Sort_order      = split /\s+/, shift @data;
-   ($Header, 
-    $Footer)         =                    @data;
+    $Data{build}           = { split /\s+/, shift @data };
+    $Data{default_args}    = { split /\s+/, shift @data };
+    $Data{sort_order}      = [ split /\s+/, shift @data ];
+   ($Data{header}, 
+    $Data{footer})         =                      @data;
 }
 
 sub _build_args { 
-    my %make = @_;                           # Makefile.PL arguments
-    my @build_args = @{_insert_args()};  
+    my %make = @_;                         # Makefile.PL arguments
+    my @build_args = @{_insert_args()};      
     
     for my $arg (keys %make) {
-        next unless $Build{$arg};
+        next unless $Data{build}->{$arg};
 	
         if (ref $make{$arg} eq 'HASH') {                                ### HASH CONVERSION
 	    my %subargs;   
@@ -94,11 +81,11 @@ sub _build_args {
 	    }
 	    
             my %tmphash;
-	    %{$tmphash{$Build{$arg}}} = %subargs;  
+	    %{$tmphash{$Data{build}->{$arg}}} = %subargs;  
 	    push @build_args, \%tmphash;
 	}
 	elsif (ref $make{$arg} eq 'ARRAY') {                            ### ARRAY CONVERSION
-	    warn "Warning: $arg - array conversion not supported\n";
+	    warn "Warning: $arg - array conversion not supported\n";    
 	}
 	#
 	# One-dimensional hash values (scalars),
@@ -106,16 +93,15 @@ sub _build_args {
 	#
         elsif (ref $make{$arg} eq '') { 	                        ### SCALAR CONVERSION
 	    my %tmphash;
-	    $tmphash{$Build{$arg}} = $make{$arg};
+	    $tmphash{$Data{build}->{$arg}} = $make{$arg};
 	    push @build_args, \%tmphash;
 	}
 	else { 
 	    warn "Warning: $arg - unknown type of argument\n";
 	}
-    }   
-    undef %Build; 
+    }
     
-    _sort( \@build_args )    if @Sort_order;
+    _sort( \@build_args )    if @{$Data{sort_order}};
     
     return \@build_args;
 }
@@ -123,13 +109,11 @@ sub _build_args {
 sub _insert_args {
     my @insert_args;
 
-    while (my ($arg, $value) = each %Default_args) {
+    while (my ($arg, $value) = each %{$Data{default_args}}) {
         my %tmphash;
-	
 	$tmphash{$arg} = $value;
 	push @insert_args, \%tmphash;
     }
-    undef %Default_args;
     
     return \@insert_args;
 }
@@ -142,18 +126,16 @@ sub _sort {
         my %have_args = map { keys %$_ => 1 } @$args;
 	
         my $i = 0;
-        %sort_order = map {                      # Filter sort items, that we didn't receive as args,
-            $_ => $i++                           # and map the rest to according array indexes.
-        } (grep $have_args{$_}, @Sort_order);    
-	
-	undef @Sort_order;
-    }    
+        %sort_order = map {                               # Filter sort items, that we didn't receive as args,
+            $_ => $i++                                    # and map the rest to according array indexes.
+        } (grep $have_args{$_}, @{$Data{sort_order}});    
+    }  
     
     my ($sorted, @unsorted);
     do {
         $sorted = 1;
 	
-	ITER:
+	SORT:
         for (my $i = 0; $i < @$args; $i++) {   
             my ($arg) = keys %{$args->[$i]};
 	    
@@ -168,11 +150,10 @@ sub _sort {
 		  splice( @$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
 		    splice( @$args, $i, 1 ) );             # the end. 
 		    
-		last ITER;    
+		last SORT;    
 	    }
         }
-    } 
-    until ($sorted);
+    } until ($sorted);
     
     push @$args, @unsorted;  
 }
@@ -214,13 +195,12 @@ sub _open_build_pl {
 sub _write_header {
     chop( my $INTEND = $INTEND );
     
-    $Header =~ s/(\$[A-Z]+)/$1/eeg;
+    $Data{header} =~ s/(\$[A-Z]+)/$1/eeg;
     
     _debug( "\n$BUILD_PL written:\n" );
-    _debug( $Header );
+    _debug( $Data{header} );
     
-    print $Header; 
-    undef $Header;
+    print $Data{header}; 
 }
 
 sub _write_args {
@@ -243,7 +223,7 @@ sub _write_args {
 		
 	        $line =~ s/^ \s{$shorten} (.*) $/$1/ox;          # Remove additional whitespace
 		$line =~ s/(\S+) => (\w+)/'$1' => $2/o;          # Add quotes to hash keys within multiple hashes
-		$line =~ s/'(\d+)' [, ] $/$1/ox;                 # Remove quotes on version numbers
+		#$line =~ s/'(\d+)' [, ] $/$1/ox;                # Remove quotes on version numbers
 	        $line .= ','    if ($line =~ /[\d+ \}] $/ox);    # Add comma where appropriate (version numbers, parentheses)
 		
 		_debug( "$INTEND$line\n" );
@@ -266,12 +246,11 @@ sub _write_args {
 sub _write_footer {
     chop( my $INTEND = $INTEND );
     
-    $Footer =~ s/(\$[A-Z]+)/$1/eeg;
+    $Data{footer} =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug( $Footer );
+    _debug( $Data{footer} );
     
-    print $Footer;
-    undef $Footer;
+    print $Data{footer};
 }
 
 sub _close_build_pl {
@@ -288,31 +267,31 @@ sub _debug {
 __DATA__
  
 # args conversion 
-- 
+-
 NAME                  module_name
 PREREQ_PM             requires
  
 # default args 
-- 
+-
 license               perl
 create_makefile_pl    passthrough
  
 # sort order 
-- 
+-
 module_name
 license
 requires
 create_makefile_pl
  
 # header 
-- 
+-
 
 use Module::Build;
 
 my $b = Module::Build->new
 $INTEND(
 # footer 
-- 
+-
 $INTEND);
   
 $b->create_build_script;
