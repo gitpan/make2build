@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 use strict;
 #use warnings; 
@@ -9,12 +9,12 @@ use Data::Dumper;
 use ExtUtils::MakeMaker;
 
 our (
-    %build,
-    %default_args,
-    @sort_order,
-    $header,
-    $footer,
-    $INTEND,
+     %Build,
+     %Default_args,
+     @Sort_order,
+     $Header,
+     $Footer,
+     $INTEND,
 );
 
 
@@ -41,11 +41,11 @@ sub _run_makefile {
 
 sub _convert {
     local (
-          %build,           # Conversion table 
-	  %default_args,
-          @sort_order, 
-	  $header,
-	  $footer,
+           %Build,           # Conversion table 
+	   %Default_args,
+           @Sort_order, 
+	   $Header,
+	   $Footer,
     );
     
     _get_data();
@@ -66,11 +66,11 @@ sub _get_data {
     chomp $data[-1]; $/ = "\n";            
     chomp $data[-1];                       
     
-    %build           = split /\s+/, shift @data;
-    %default_args    = split /\s+/, shift @data;
-    @sort_order      = split /\s+/, shift @data;
-   ($header, 
-    $footer)         =                    @data;
+    %Build           = split /\s+/, shift @data;
+    %Default_args    = split /\s+/, shift @data;
+    @Sort_order      = split /\s+/, shift @data;
+   ($Header, 
+    $Footer)         =                    @data;
 }
 
 sub _build_args { 
@@ -78,7 +78,7 @@ sub _build_args {
     my @build_args = @{ _insert_args() };  
     
     for my $arg (keys %make) {
-        next unless $build{$arg};
+        next unless $Build{$arg};
 	
         if (ref $make{$arg} eq 'HASH') {                                ### HASH CONVERSION
  	    my (%subargs, $count_subargs);  
@@ -90,7 +90,7 @@ sub _build_args {
 	    
             my %tmphash;
 	    
-	    %{ $tmphash{ $build{$arg} } } = %subargs;  
+	    %{ $tmphash{ $Build{$arg} } } = %subargs;  
 	    push @build_args, \%tmphash;
 	}
 	elsif (ref $make{$arg} eq 'ARRAY') {                            ### ARRAY CONVERSION
@@ -103,16 +103,16 @@ sub _build_args {
         elsif (ref $make{$arg} eq '') { 	                        ### SCALAR CONVERSION
 	    my %tmphash;
 	    
-	    $tmphash{ $build{$arg} } = $make{$arg};
+	    $tmphash{ $Build{$arg} } = $make{$arg};
 	    push @build_args, \%tmphash;
 	}
 	else { 
 	    warn "Warning: $arg - unknown type of argument\n";
 	}
     }   
-    undef %build; 
+    undef %Build; 
     
-    _sort( \@build_args )    if @sort_order;
+    _sort( \@build_args )    if @Sort_order;
     
     return \@build_args;
 }
@@ -120,13 +120,13 @@ sub _build_args {
 sub _insert_args {
     my @insert_args;
 
-    while (my ($arg, $value) = each %default_args) {
+    while (my ($arg, $value) = each %Default_args) {
         my %tmphash;
 	
 	$tmphash{$arg} = $value;
 	push @insert_args, \%tmphash;
     }
-    undef %default_args;
+    undef %Default_args;
     
     return \@insert_args;
 }
@@ -137,20 +137,19 @@ sub _sort {
     my %sort_order;
     {
         my %have_args = map { keys %$_ => 1 } @$args;
-      
-        my $i = 0;
-        %sort_order = map {                    # Filter sort items, that we didn't receive as args,
-            $_ => $i++                         # and map the rest to according array indexes.
-        } 
-        (grep $have_args{$_}, @sort_order);    
 	
-	undef @sort_order;
+        my $i = 0;
+        %sort_order = map {    # Filter sort items, that we didn't receive as args,
+            $_ => $i++         # and map the rest to according array indexes.
+        } 
+        (grep $have_args{$_}, @Sort_order);    
+	
+	undef @Sort_order;
     }    
     
     my ($sorted, @unsorted);
-    
     do {
-        $sorted = 1; 
+        $sorted = 1;
 	
 	ITER:
         for (my $i = 0; $i < @$args; $i++) {   
@@ -162,10 +161,10 @@ sub _sort {
 	    
             if ($i != $sort_order{$arg}) {
                 $sorted = 0;
- 
-	        push @$args,                               # Move element $i to pos $sort_order{$arg}
-		  splice( @$args, $sort_order{$arg}, 1,    # and the element at $sort_order{$arg} to 
-		    splice( @$args, $i, 1 ) );             # the end.
+
+	        push @$args,                               # Move element $i to pos $Sort_order{$arg}
+		  splice( @$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
+		    splice( @$args, $i, 1 ) );             # the end. 
 		    
 		last ITER;    
 	    }
@@ -214,13 +213,13 @@ sub _write_header {
     local $INTEND = $INTEND;
     chop( $INTEND );
     
-    $header =~ s/(\$[A-Z]+)/$1/eeg;
+    $Header =~ s/(\$[A-Z]+)/$1/eeg;
     
     _debug( "\n$BUILD_PL written:\n" );
-    _debug( $header );
+    _debug( $Header );
     
-    print $header; 
-    undef $header;
+    print $Header; 
+    undef $Header;
 }
 
 sub _write_args {
@@ -267,12 +266,12 @@ sub _write_footer {
     local $INTEND = $INTEND;
     chop( $INTEND );
     
-    $footer =~ s/(\$[A-Z]+)/$1/eeg;
+    $Footer =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug( $footer );
+    _debug( $Footer );
     
-    print $footer;
-    undef $footer;
+    print $Footer;
+    undef $Footer;
 }
 
 sub _close_build_pl {
