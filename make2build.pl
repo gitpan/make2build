@@ -8,7 +8,7 @@ make2build - create a Build.PL derived from Makefile.PL
 
 =head1 SYNOPSIS 
 
- ./make2build.pl    # In the top level directory of an 
+ ./make2build.pl    # In the root directory of an 
                     # ExtUtils::MakeMaker based distribution 
 
 =head1 DESCRIPTION
@@ -58,7 +58,7 @@ Data::Dumper sort keys. Defaults to 1.
 
 =item B<argument conversion>
 
-MakeMaker arguments followed by their Module::Build equivalents. 
+ExtUtils::MakeMaker arguments followed by their Module::Build equivalents. 
 Converted data structures preserve their native structure,
 i.e. HASH -> HASH, etc.
 
@@ -90,18 +90,18 @@ unsorted order after preceedeingly sorted arguments.
  requires
  create_makefile_pl
 
-=item B<prelude>
+=item B<begin code>
 
-Code that preceeds Module::Build arguments.
+Code that preceeds converted Module::Build arguments.
 
  use Module::Build;
 
  my $b = Module::Build->new
  $INDENT(
 
-=item B<epilogue>
+=item B<end code>
 
-Code that follows Module::Build arguments.
+Code that follows converted Module::Build arguments.
 
  $INDENT);
 
@@ -121,7 +121,7 @@ Code that follows Module::Build arguments.
 
 =head1 SEE ALSO
 
-L<ExtUtils::MakeMaker>, L<Module::Build>	    
+L<ExtUtils::MakeMaker>, L<Module::Build>, L<http://www.makemaker.org/wiki/index.cgi?ModuleBuildConversionGuide>	    
 
 =cut
 
@@ -175,19 +175,21 @@ sub _convert {
 
 sub _get_data {
     local $/ = '1;';
-    local $_ = <DATA>;
-                                        #  # description
-    my @data = split /#\s+.*\s+-\n/;    #  -
     
-    (undef) = shift @data;              # Superfluos items			
+    my @data = do {
+        local $_ = <DATA>;         #  # description
+	split /#\s+.*\s+-\n/;      #  -
+    };
+
+    (undef) = shift @data;         # Superfluos items			
     chomp $data[-1]; $/ = "\n";
     chomp $data[-1]; 
     
     $Data{build}           = { split /\s+/, shift @data };
     $Data{default_args}    = { split /\s+/, shift @data };
     $Data{sort_order}      = [ split /\s+/, shift @data ];
-   ($Data{header}, 
-    $Data{footer})         =                      @data;
+   ($Data{begin}, 
+    $Data{end})            =                      @data;
 }
 
 sub _build_args { 
@@ -210,10 +212,8 @@ sub _build_args {
 	elsif (ref $make{$arg} eq 'ARRAY') {                            ### ARRAY CONVERSION
 	    warn "Warning: $arg - array conversion not supported\n";    
 	}
-	#
 	# One-dimensional hash values (scalars),
 	# don't justify as SCALARS.
-	#
         elsif (ref $make{$arg} eq '') { 	                        ### SCALAR CONVERSION
 	    my %tmphash;
 	    $tmphash{$Data{build}->{$arg}} = $make{$arg};
@@ -249,14 +249,14 @@ sub _sort {
         my %have_args = map { keys %$_ => 1 } @$args;
 	
         my $i = 0;
-        %sort_order = map {                               # Filter sort items, that we didn't receive as args,
-            $_ => $i++                                    # and map the rest to according array indexes.
+        %sort_order = map {                             # Filter sort items, that we didn't receive as args,
+            $_ => $i++                                  # and map the rest to according array indexes.
         } grep $have_args{$_}, @{$Data{sort_order}};    
     }  
     
-    my ($sorted, @unsorted);
+    my ($is_sorted, @unsorted);
     do {
-        $sorted = 1;
+        $is_sorted = 1;
 	
 	SORT:
         for (my $i = 0; $i < @$args; $i++) {   
@@ -268,7 +268,7 @@ sub _sort {
 	    }
 	    
             if ($i != $sort_order{$arg}) {
-                $sorted = 0;
+                $is_sorted = 0;
 
 	        push @$args,                               # Move element $i to pos $Sort_order{$arg}
 		  splice( @$args, $sort_order{$arg}, 1,    # and the element at $Sort_order{$arg} to 
@@ -277,7 +277,7 @@ sub _sort {
 		last SORT;    
 	    }
         }
-    } until ($sorted);
+    } until ($is_sorted);
     
     push @$args, @unsorted;  
 }
@@ -302,9 +302,9 @@ sub _write {
 
     _open_build_pl();
 
-    _write_header();
+    _write_begin();
    &_write_args;
-    _write_footer();
+    _write_end();
     
     _close_build_pl();
 }
@@ -316,15 +316,15 @@ sub _open_build_pl {
     select F_BUILD;
 }
 
-sub _write_header {
+sub _write_begin {
     chop( my $INDENT = $INDENT );
     
-    $Data{header} =~ s/(\$[A-Z]+)/$1/eeg;
+    $Data{begin} =~ s/(\$[A-Z]+)/$1/eeg;
     
     _debug( "\n$BUILD_PL written:\n" );
-    _debug( $Data{header} );
+    _debug( $Data{begin} );
     
-    print $Data{header}; 
+    print $Data{begin}; 
 }
 
 sub _write_args {
@@ -367,14 +367,14 @@ sub _write_args {
     }
 }
 
-sub _write_footer {
+sub _write_end {
     chop( my $INDENT = $INDENT );
     
-    $Data{footer} =~ s/(\$[A-Z]+)/$1/eeg;
+    $Data{end} =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _debug( $Data{footer} );
+    _debug( $Data{end} );
     
-    print $Data{footer};
+    print $Data{end};
 }
 
 sub _close_build_pl {
@@ -413,14 +413,14 @@ license
 requires
 create_makefile_pl
  
-# prelude 
+# begin code 
 -
 
 use Module::Build;
 
 my $b = Module::Build->new
 $INDENT(
-# epilogue 
+# end code 
 -
 $INDENT);
   
