@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.08';
+$VERSION = '0.09';
 
 use strict;
 use vars qw(
@@ -66,11 +66,10 @@ sub _convert {
 sub _get_data {
     local $/ = '1;';
     local $_ = <DATA>;
+                                             #  # description
+    my @data = split /#\s+.*\s+?-\s+?\n/;    #  -
     
-    my $regexp = qr{#\s+.*\s+?-\s+?\n};    #  # description
-    my @data = split /$regexp/;            #  -
-    
-    shift @data;                           # Superfluos items			
+    shift @data;                             # Superfluos items			
     chomp $data[-1]; $/ = "\n";            
     chomp $data[-1];                       
     
@@ -186,7 +185,7 @@ sub _dump {
     $Data::Dumper::Sortkeys     = $DD_SORTKEYS;
     $Data::Dumper::Terse        = 1;
     
-    my $d = Data::Dumper->new([ @$args ]);
+    my $d = Data::Dumper->new( $args );
     
     return [ $d->Dump ];
 }
@@ -213,8 +212,7 @@ sub _open_build_pl {
 }
 
 sub _write_header {
-    local $INTEND = $INTEND;
-    chop( $INTEND );
+    chop( my $INTEND = $INTEND );
     
     $Header =~ s/(\$[A-Z]+)/$1/eeg;
     
@@ -266,8 +264,7 @@ sub _write_args {
 }
 
 sub _write_footer {
-    local $INTEND = $INTEND;
-    chop( $INTEND );
+    chop( my $INTEND = $INTEND );
     
     $Footer =~ s/(\$[A-Z]+)/$1/eeg;
     
