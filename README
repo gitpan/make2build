@@ -1,7 +1,7 @@
 make2build
 ==========
 
-Generate a Build.PL derived from Makefile.PL
+Create a Build.PL derived from Makefile.PL
 
 LICENSE
 

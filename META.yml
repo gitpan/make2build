@@ -4,4 +4,4 @@ dist_version_from: make2build.pl
 installdirs: site
 distribution_type: module
 license: perl
-dist_abstract: generate a Build.PL derived from Makefile.PL
+dist_abstract: create a Build.PL derived from Makefile.PL

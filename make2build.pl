@@ -1,13 +1,130 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.10';
+$VERSION = '0.11';
+
+=head1 NAME
+
+make2build - create a Build.PL derived from Makefile.PL
+
+=head1 SYNOPSIS 
+
+ ./make2build.pl    # In the top level directory of an 
+                    # ExtUtils::MakeMaker based distribution 
+
+=head1 DESCRIPTION
+
+ExtUtils::MakeMaker has been a de-facto standard for the common distribution of Perl
+modules; Module::Build is expected to supersede ExtUtils::MakeMaker in some time. 
+The transition takes place slowly, as the converting process manually achieved 
+is yet an uncommon practice. This parser is intended to ease the transition process.
+
+=head1 OPTIONS
+
+=head2 B<Globals>
+
+=over 4
+
+=item C<$MAKEFILE_PL>
+
+The filename of the Makefile script. Defaults to F<Makefile.PL>.
+
+=item C<$BUILD_PL>
+
+The filename of the Build script. Defaults to F<Build.PL>.
+
+=item C<$DEBUG>
+
+Debugging. If set, created Build script will be printed to STDOUT.
+Defaults to 0.
+
+=item C<$LEN_INDENT>
+
+Indentation (character width). Defaults to 3.
+
+=item C<$DD_INDENT>
+
+Data::Dumper indendation mode. Mode 0 will be disregarded in favor
+of 2. Defaults to 2.
+
+=item C<$DD_SORTKEYS>
+
+Data::Dumper sort keys. Defaults to 1.
+
+=back
+
+=head2 B<Data section>
+
+=over 4
+
+=item B<argument conversion>
+
+MakeMaker arguments followed by their Module::Build equivalents. 
+Converted data structures preserve their native structure,
+i.e. HASH -> HASH, etc.
+
+ NAME         module_name
+ PREREQ_PM    requires
+
+=item B<default arguments>
+
+Module::Build default arguments may be specified as key / value pairs. 
+Arguments attached to multidimensional structures are unsupported.
+
+ license               perl
+ create_makefile_pl    passthrough
+
+=item B<sorting order>
+
+Module::Build arguments are sorted as enlisted herein. Additional arguments, 
+that don't occur herein, are lower prioritized and will be inserted in 
+unsorted order after preceedeingly sorted arguments.
+
+ module_name
+ license
+ requires
+ create_makefile_pl
+
+=item B<prelude>
+
+Code that preceeds Module::Build arguments.
+
+ use Module::Build;
+
+ my $b = Module::Build->new
+ $INDENT(
+
+=item B<epilogue>
+
+Code that follows Module::Build arguments.
+
+ $INDENT);
+
+ $b->create_build_script;
+
+=back
+
+=head1 INTERNALS
+
+=over 4
+
+=item B<co-opting WriteMakefile()>
+
+=item B<Data::Dumper>
+
+=back
+
+=head1 SEE ALSO
+
+L<ExtUtils::MakeMaker>, L<Module::Build>	    
+
+=cut
 
 use strict;
 use vars qw(
     $MAKEFILE_PL
     $BUILD_PL
     $DEBUG
-    $LEN_INTEND
+    $LEN_INDENT
     $DD_INDENT
     $DD_SORTKEYS
 );
@@ -16,14 +133,14 @@ no warnings 'redefine';
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
-our ($INTEND, %Data);
+our ($INDENT, %Data);
      
 
 $MAKEFILE_PL    = 'Makefile.PL';
 $BUILD_PL       = 'Build.PL';
 
 $DEBUG          = 0;
-$LEN_INTEND     = 3;
+$LEN_INDENT     = 3;
 
 # Data::Dumper
 $DD_INDENT      = 2;
@@ -172,7 +289,7 @@ sub _dump {
 }
 
 sub _write { 
-    local $INTEND = ' ' x $LEN_INTEND;
+    local $INDENT = ' ' x $LEN_INDENT;
     
     local *F_BUILD; 
 
@@ -193,7 +310,7 @@ sub _open_build_pl {
 }
 
 sub _write_header {
-    chop( my $INTEND = $INTEND );
+    chop( my $INDENT = $INDENT );
     
     $Data{header} =~ s/(\$[A-Z]+)/$1/eeg;
     
@@ -226,9 +343,9 @@ sub _write_args {
 		#$line =~ s/'(\d+)' [, ] $/$1/ox;                # Remove quotes on version numbers
 	        $line .= ','    if ($line =~ /[\d+ \}] $/ox);    # Add comma where appropriate (version numbers, parentheses)
 		
-		_debug( "$INTEND$line\n" );
+		_debug( "$INDENT$line\n" );
 		
-		print "$INTEND$line\n";
+		print "$INDENT$line\n";
             }
 	}
 	else {                                                   ### SCALAR OUTPUT
@@ -236,15 +353,15 @@ sub _write_args {
 	    
             $arg =~ s/^ \{ \s+ (.*) \s+ \} $/$1/ox;              # Remove redundant parentheses
 	    
-	    _debug( "$INTEND$arg,\n" );
+	    _debug( "$INDENT$arg,\n" );
 	    
-	    print "$INTEND$arg,\n";
+	    print "$INDENT$arg,\n";
 	}
     }
 }
 
 sub _write_footer {
-    chop( my $INTEND = $INTEND );
+    chop( my $INDENT = $INDENT );
     
     $Data{footer} =~ s/(\$[A-Z]+)/$1/eeg;
     
@@ -266,54 +383,34 @@ sub _debug {
 
 __DATA__
  
-# args conversion 
+# argument conversion 
 -
 NAME                  module_name
 PREREQ_PM             requires
  
-# default args 
+# default arguments 
 -
 license               perl
 create_makefile_pl    passthrough
  
-# sort order 
+# sorting order 
 -
 module_name
 license
 requires
 create_makefile_pl
  
-# header 
+# prelude 
 -
 
 use Module::Build;
 
 my $b = Module::Build->new
-$INTEND(
-# footer 
+$INDENT(
+# epilogue 
 -
-$INTEND);
+$INDENT);
   
 $b->create_build_script;
 
 1;
-__END__
-
-=head1 NAME
-
-make2build - generate a Build.PL derived from Makefile.PL
-
-=head1 SYNOPSIS 
-
- ./make2build.pl    # In the root directory of a ExtUtils::MakeMaker 
-                    # (or F<Makefile.PL>) based distribution 
-
-=head1 DESCRIPTION
-
--
-
-=head1 SEE ALSO
-
-L<ExtUtils::MakeMaker>, L<Module::Build>	    
-
-=cut
