@@ -1,0 +1,13 @@
+make2build
+==========
+
+Generate a Build.PL derived from Makefile.PL
+
+LICENSE
+
+This program is free software; you may redistribute it 
+and/or modify it under the same terms as Perl itself.
+
+AUTHOR
+
+Steven Schubiger

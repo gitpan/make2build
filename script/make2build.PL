@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 use strict;
 #use warnings; 
@@ -75,22 +75,22 @@ sub _get_data {
 
 sub _build_args { 
     my %make = @_;                           # Makefile.PL arguments
-    my @build_args = @{ _insert_args() };  
+    my @build_args = @{_insert_args()};  
     
     for my $arg (keys %make) {
         next unless $Build{$arg};
 	
         if (ref $make{$arg} eq 'HASH') {                                ### HASH CONVERSION
  	    my (%subargs, $count_subargs);  
-	    my ($total_subargs) = %{ $make{$arg} } =~ /^(.)/;    
+	    my ($total_subargs) = %{$make{$arg}} =~ /^(.)/;    
 	    
-	    for my $subarg (keys %{ $make{$arg} }) {
+	    for my $subarg (keys %{$make{$arg}}) {
 	        $subargs{$subarg} = $make{$arg}{$subarg};
 	    }
 	    
             my %tmphash;
 	    
-	    %{ $tmphash{ $Build{$arg} } } = %subargs;  
+	    %{$tmphash{$Build{$arg}}} = %subargs;  
 	    push @build_args, \%tmphash;
 	}
 	elsif (ref $make{$arg} eq 'ARRAY') {                            ### ARRAY CONVERSION
@@ -153,7 +153,7 @@ sub _sort {
 	
 	ITER:
         for (my $i = 0; $i < @$args; $i++) {   
-            my ($arg) = keys %{ $args->[$i] };
+            my ($arg) = keys %{$args->[$i]};
 	    
 	    unless (defined $sort_order{$arg}) {
 	       push @unsorted, splice( @$args, $i, 1 );
@@ -335,10 +335,6 @@ make2build - generate a Build.PL derived from Makefile.PL
 
 =head1 SEE ALSO
 
-L<ExtUtils::MakeMaker>, L<Module::Build>
-
-=head1 AUTHOR
-
-Steven Schubiger		    
+L<ExtUtils::MakeMaker>, L<Module::Build>	    
 
 =cut
