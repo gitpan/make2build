@@ -136,7 +136,6 @@ use vars qw(
 );
 use warnings; 
 no warnings 'redefine';
-#no warnings 'unitialized';
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
