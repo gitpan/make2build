@@ -1,5 +1,11 @@
 Revision history for Perl script make2build.
 
+0.12 2004/02/23
+ - ExtUtils::MakeMaker arguments DISTNAME, VERSION, VERSION_FROM, 
+   are converted and output sorted.
+ - Default value of the license argument has been replaced 
+   with 'unknown'.
+
 0.11 2004/02/22
  - Documentation has been largely extended.
 

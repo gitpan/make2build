@@ -1,6 +1,6 @@
 #! /usr/local/bin/perl
 
-$VERSION = '0.11';
+$VERSION = '0.12';
 
 =head1 NAME
 
@@ -62,8 +62,11 @@ MakeMaker arguments followed by their Module::Build equivalents.
 Converted data structures preserve their native structure,
 i.e. HASH -> HASH, etc.
 
- NAME         module_name
- PREREQ_PM    requires
+ NAME                  module_name
+ DISTNAME              dist_name
+ VERSION               dist_version
+ VERSION_FROM          dist_version_from
+ PREREQ_PM             requires
 
 =item B<default arguments>
 
@@ -80,6 +83,9 @@ that don't occur herein, are lower prioritized and will be inserted in
 unsorted order after preceedeingly sorted arguments.
 
  module_name
+ dist_name
+ dist_version
+ dist_version_from
  license
  requires
  create_makefile_pl
@@ -130,6 +136,7 @@ use vars qw(
 );
 use warnings; 
 no warnings 'redefine';
+#no warnings 'unitialized';
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
@@ -245,7 +252,7 @@ sub _sort {
         my $i = 0;
         %sort_order = map {                               # Filter sort items, that we didn't receive as args,
             $_ => $i++                                    # and map the rest to according array indexes.
-        } (grep $have_args{$_}, @{$Data{sort_order}});    
+        } grep $have_args{$_}, @{$Data{sort_order}};    
     }  
     
     my ($sorted, @unsorted);
@@ -258,6 +265,7 @@ sub _sort {
 	    
 	    unless (defined $sort_order{$arg}) {
 	       push @unsorted, splice( @$args, $i, 1 );
+	       next;
 	    }
 	    
             if ($i != $sort_order{$arg}) {
@@ -386,16 +394,22 @@ __DATA__
 # argument conversion 
 -
 NAME                  module_name
+DISTNAME              dist_name
+VERSION               dist_version
+VERSION_FROM          dist_version_from
 PREREQ_PM             requires
  
 # default arguments 
 -
-license               perl
+license               unknown
 create_makefile_pl    passthrough
  
 # sorting order 
 -
 module_name
+dist_name
+dist_version
+dist_version_from
 license
 requires
 create_makefile_pl
