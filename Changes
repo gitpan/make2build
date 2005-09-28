@@ -1,5 +1,13 @@
 Revision history for Perl script make2build.
 
+0.18 2005/09/28
+ - The conversion & interpretation of arguments which 
+   specify temporary files for removement has been implemented 
+   by Nathan Gray <kolibrie@graystudios.org>.
+   
+ - Array argument conversion has been integrated with included
+   string to elements conversion, when necessary. 
+
 0.17 2005/03/07
  - Added recommends, build_requires, conflicts, pm_files,
    extra_compiler_flags, sign, dist_abstract, dist_author

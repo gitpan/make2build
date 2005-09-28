@@ -1,6 +1,6 @@
-#! /usr/bin/perl
+#!/usr/bin/perl
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 our $NAME = 'make2build';
 
 =head1 NAME
@@ -34,6 +34,10 @@ The filename of the Makefile script. Defaults to F<Makefile.PL>.
 =item C<$BUILD_PL>
 
 The filename of the Build script. Defaults to F<Build.PL>.
+
+=item C<$MANIFEST>
+
+The filename of the MANIFEST file. Defaults to F<MANIFEST>.
 
 =item C<$VERBOSE>
 
@@ -75,6 +79,7 @@ i.e. HASH -> HASH, etc.
  SIGN                  sign
  ABSTRACT              dist_abstract
  AUTHOR                dist_author
+ clean->FILES          add_to_cleanup
 
 =item B<default arguments>
 
@@ -153,29 +158,30 @@ L<ExtUtils::MakeMaker>, L<Module::Build>, L<http://www.makemaker.org/wiki/index.
 
 =head1 AUTHOR
 
-Steven Schubiger <steven@accognoscere.org>	    
+Steven Schubiger <sts@accognoscere.org>	    
 
 =cut
 
 use strict;
-use vars qw(
-    $MAKEFILE_PL
-    $BUILD_PL
-    $VERBOSE
-    $LEN_INDENT
-    $DD_INDENT
-    $DD_SORTKEYS
-);
 use warnings; 
 no warnings 'redefine';
 
 use Data::Dumper;
 use ExtUtils::MakeMaker;
 
-our ($INDENT, %Data);
+our ($MAKEFILE_PL,
+     $BUILD_PL,
+     $MANIFEST,
+     $VERBOSE,
+     $LEN_INDENT,
+     $DD_INDENT,
+     $DD_SORTKEYS,
+     $INDENT, 
+     %Data);
      
 $MAKEFILE_PL    = 'Makefile.PL';
 $BUILD_PL       = 'Build.PL';
+$MANIFEST	= 'MANIFEST';
 
 $VERBOSE        = 0;
 $LEN_INDENT     = 3;
@@ -184,25 +190,26 @@ $LEN_INDENT     = 3;
 $DD_INDENT      = 2;
 $DD_SORTKEYS    = 1;
 
-*ExtUtils::MakeMaker::WriteMakefile = \&_convert;
+*ExtUtils::MakeMaker::WriteMakefile = \&convert;
 
-_run_makefile();
+run_makefile();
 
-sub _run_makefile {
+sub run_makefile {
     -e $MAKEFILE_PL
       ? do $MAKEFILE_PL
       : die "No $MAKEFILE_PL found\n";
 }
 
-sub _convert {
+sub convert {
     local %Data; 
-    _get_data();
+    get_data();
     
     print "Converting $MAKEFILE_PL -> $BUILD_PL\n";
-    _write(_dump(&_build_args));
+    create(output(&build_args));
+    add_to_manifest() if (-e 'MANIFEST');
 }
 
-sub _get_data {
+sub get_data {
     local $/ = '1;';
     
     my @data = do {
@@ -220,52 +227,103 @@ sub _get_data {
     $Data{sort_order}      = [ split /\s+/, shift @data ];
    ($Data{begin}, 
     $Data{end})            =                      @data;
+
+    # allow for embedded values such as clean => { FILES => '' }
+    foreach my $arg (keys %{$Data{build}}) {
+        if (index($arg, '.') > 0) {
+	    my @path = split(/\./, $arg);
+	    my $value = $Data{build}->{$arg};
+	    my $current = $Data{build};
+	    while (@path) {
+	        my $key = shift(@path);
+		$current->{$key} ||= @path ? {} : $value;
+		$current = $current->{$key};
+	    }
+	}
+    }
 }
 
-sub _build_args {
+sub build_args {
     # Makefile.PL arguments 
     my %make = @_;                         
-    my @build_args = @{_insert_args()};      
+    my @build_args = @{insert_args()};      
     
     for my $arg (keys %make) {
         next unless $Data{build}->{$arg};
 	
-	### HASH CONVERSION
+	# Hash conversion
         if (ref $make{$arg} eq 'HASH') {                                
-	    my %subargs;   
-	    for my $subarg (keys %{$make{$arg}}) {
-	        $subargs{$subarg} = $make{$arg}{$subarg};
+	    if (ref($Data{build}->{$arg}) eq 'HASH') {
+		# embedded structure
+		my @iterators = ();
+		my $current = $Data{build}->{$arg};
+		my $value = $make{$arg};
+		push @iterators, iterator($current, $value, keys %$current);
+		while (@iterators) {
+		    my $iterator = shift(@iterators);
+		    while (($current, $value) = $iterator->()) {
+			if (ref($current) eq 'HASH') {
+			    push @iterators, iterator($current, $value, keys %$current);
+			} else {
+			    if (substr($current, 0, 1) eq '@') {
+				my $attr = substr($current, 1);
+			        if (ref($value) eq 'ARRAY') {
+				    push @build_args, { $attr => $value };
+				} else {
+				    push @build_args, { $attr => [$value] };
+				}
+			    } else {
+			        push @build_args, { $current => $value };
+			    }
+			}
+		    }
+		}
+	    } else {
+		# flat structure
+		my %subargs;   
+		for my $subarg (keys %{$make{$arg}}) {
+		    $subargs{$subarg} = $make{$arg}{$subarg};
+		}
+		
+		my %tmphash;
+		%{$tmphash{$Data{build}->{$arg}}} = %subargs;  
+		push @build_args, \%tmphash;
 	    }
-	    
-            my %tmphash;
-	    %{$tmphash{$Data{build}->{$arg}}} = %subargs;  
-	    push @build_args, \%tmphash;
 	}
-	### ARRAY CONVERSION
+	# Array conversion
 	elsif (ref $make{$arg} eq 'ARRAY') {                            
 	    warn "Warning: $arg - array conversion not supported\n";    
 	}
 	# One-dimensional hash values (scalars),
 	# don't justify as SCALARS.
-	###
-	### SCALAR CONVERSION
+	# Scalar conversion
         elsif (ref $make{$arg} eq '') { 	                        
 	    my %tmphash;
 	    $tmphash{$Data{build}->{$arg}} = $make{$arg};
 	    push @build_args, \%tmphash;
 	}
-	### UNKNOWN
+	# Unknown type
 	else { 
 	    warn "Warning: $arg - unknown type of argument\n";
 	}
     }
     
-    _sort(\@build_args) if @{$Data{sort_order}};
+    sort_args(\@build_args) if @{$Data{sort_order}};
     
     return \@build_args;
 }
 
-sub _insert_args {
+sub iterator {
+    my $build = shift;
+    my $make  = shift;
+    my @queue = @_;
+    return sub {
+        my $key = shift(@queue) || return;
+	return $build->{$key}, $make->{$key};
+    }
+}
+
+sub insert_args {
     my @insert_args;
 
     while (my ($arg, $value) = each %{$Data{default_args}}) {
@@ -281,7 +339,7 @@ sub _insert_args {
     return \@insert_args;
 }
 
-sub _sort {
+sub sort_args {
     my ($args) = @_;
     
     my %sort_order;
@@ -325,7 +383,7 @@ sub _sort {
     push @$args, @unsorted;  
 }
 
-sub _dump {
+sub output {
     my ($args) = @_;
 
     $Data::Dumper::Indent       = $DD_INDENT || 2;
@@ -334,11 +392,10 @@ sub _dump {
     $Data::Dumper::Terse        = 1;
     
     my $d = Data::Dumper->new($args);
-    
     return [ $d->Dump ];
 }
 
-sub _write { 
+sub create { 
     my $INDENT = ' ' x $LEN_INDENT;
     # @_ & $INDENT -> _write_args
     push @_, $INDENT; 
@@ -346,16 +403,16 @@ sub _write {
     # Fool 'once' warnings
     my $fh = \*F_BUILD; 
        $fh = \*F_BUILD;
-    my $selold = _open_build_pl($fh);
+    my $selold = open_build_pl($fh);
 
-    _write_begin($INDENT);
-   &_write_args;
-    _write_end($INDENT);
+    write_begin($INDENT);
+   &write_args;
+    write_end($INDENT);
     
-    _close_build_pl($fh, $selold);
+    close_build_pl($fh, $selold);
 }
 
-sub _open_build_pl {
+sub open_build_pl {
     my ($fh) = @_;
     
     open($fh, ">$BUILD_PL") or 
@@ -364,87 +421,118 @@ sub _open_build_pl {
     return select $fh;
 }
 
-sub _write_begin {
+sub write_begin {
     my ($INDENT) = @_;  
     $INDENT = substr($INDENT, 0, length($INDENT)-1);
     
     $Data{begin} =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _do_verbose("\n$BUILD_PL written:\n");
-    _do_verbose($Data{begin});
+    do_verbose("\n$BUILD_PL written:\n");
+    do_verbose($Data{begin});
     
-    print "## Created by $NAME $VERSION\n";
+    print "# Note: this file was auto-generated by $NAME $VERSION\n";
     print $Data{begin};
 }
 
-sub _write_args {
+sub write_args {
     my ($args, $INDENT) = @_;
     
     for my $arg (@$args) {
-        ### HASH OUTPUT                                        
-        if ($arg =~ /\Q => {/ox) {                               
+        # Hash output                       
+        if ($arg =~ /=> \{/o) {                               
 	    # Remove redundant parentheses
-	    $arg =~ s/^ \{ .*?\n (.*? \}) \s+ \} $/$1/osx;       
+	    $arg =~ s/^\{.*?\n(.*?\})\s+\}$/$1/os;       
 	    
 	    # One element per each line
 	    my @lines;        
-            while ($arg =~ s/^ (.*?\n) (.*) $/$2/osx) {          
+            while ($arg =~ s/^(.*?\n)(.*)$/$2/os) {          
                 push @lines, $1;
             };
 	    
 	    # Gather whitespace up to hash key in order
 	    # to recreate native Dump() indentation. 
-	    my ($whitespace) = $lines[0] =~ /^ (\s+) \w+/ox;
+	    my ($whitespace) = $lines[0] =~ /^(\s+)\w+/o;
 	    my $shorten = length $whitespace;                    
 	    
             for my $line (@lines) {
 	        chomp $line;
-		
 		# Remove additional whitespace
-	        $line =~ s/^ \s{$shorten} (.*) $/$1/ox;
+	        $line =~ s/^\s{$shorten}(.*)$/$1/o;
 		# Add quotes to hash keys within multiple hashes          
 		$line =~ s/(\S+) => (\w+)/'$1' => $2/o;
 		# Add comma where appropriate (version numbers, parentheses)          
-	        $line .= ',' if ($line =~ /[\d+ \}] $/ox);       
+	        $line .= ',' if $line =~ /[\d+\}]$/o;       
 		
-		_do_verbose("$INDENT$line\n");
-		print       "$INDENT$line\n";
+		do_verbose("$INDENT$line\n");
+		print "$INDENT$line\n";
             }
-	}
-	### SCALAR OUTPUT
-	else {                                                   
+	} elsif ($arg =~ /=> \[/o) { # Array output
+	    $arg =~ tr/\n//d;
+	    $arg =~ s/^\s*\{\s+(\w+ => \[ )\s+?('.*?')\s+?( \]).*/$1$2$3/os;
+	    my ($begin, $middle, $end) = ($1, $2, $3);
+	    if ($arg =~ /''/) {
+	        $arg =~ s/(.*?\[).*(\].*)/$1$2/os;
+	    } elsif ($arg =~ /'.*\s+.*'/) { # contains multiple elems
+	        $middle =~ s/ /', '/gos;
+		$arg = $begin . $middle . $end;
+	    }
+	    # Add comma where appropriate (brackets)
+	    $arg .= ',' if $arg =~ /\]$/;
+	    
+	    do_verbose("$INDENT$arg\n");
+	    print "$INDENT$arg\n";
+	} else { # Scalar output                                                 
 	    chomp $arg;
 	    # Remove redundant parentheses
-            $arg =~ s/^ \{ \s+ (.*) \s+ \} $/$1/ox;              
+            $arg =~ s/^\{\s+(.*?)\s+\}$/$1/os;              
 	    
-	    _do_verbose("$INDENT$arg,\n");
-	    print       "$INDENT$arg,\n";
+	    do_verbose("$INDENT$arg,\n");
+	    print "$INDENT$arg,\n";
 	}
     }
 }
 
-sub _write_end {
+sub write_end {
     my ($INDENT) = @_;
     $INDENT = substr($INDENT, 0, length($INDENT)-1);
     
     $Data{end} =~ s/(\$[A-Z]+)/$1/eeg;
     
-    _do_verbose($Data{end});
-    print       $Data{end};
+    do_verbose($Data{end});
+    print $Data{end};
 }
 
-sub _close_build_pl {
+sub close_build_pl {
     my ($fh, $selold) = @_;
 
-    close($fh) or
-      die "Couldn't close $BUILD_PL: $!";
-      
-    select $selold; 
+    close($fh);
+    select($selold); 
 }
 
-sub _do_verbose { 
+sub do_verbose { 
     warn @_ if $VERBOSE; 
 }
+
+sub add_to_manifest {
+    my $fh = \*MANIFEST;
+    open($fh, "<$MANIFEST") or die "Could not open $MANIFEST: $!\n";
+    my @manifest = <$fh>;
+    close($fh);
+    
+    my %have;
+    my @files = @manifest;
+    chomp(@files);
+    $have{$_} = 1 for @files;
+    
+    unless ($have{$BUILD_PL}) {
+        unshift @manifest, "$BUILD_PL\n";
+     
+        open($fh, ">$MANIFEST") or die "Could not open $MANIFEST: $!\n";
+        print $fh sort @manifest;
+        close($fh);
+    }
+}
+ 
 
 __DATA__
  
@@ -460,6 +548,7 @@ CCFLAGS               extra_compiler_flags
 SIGN                  sign
 ABSTRACT              dist_abstract
 AUTHOR                dist_author
+clean.FILES           @add_to_cleanup
  
 # default arguments 
 -
