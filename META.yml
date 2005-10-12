@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name: make2build
-version: 0.18_01
+version: 0.18_02
 author:
   - Steven Schubiger <sts@accognoscere.org>
 abstract: create a Build.PL derived from Makefile.PL

@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-our $VERSION = '0.18_01';
+our $VERSION = '0.18_02';
 our $NAME = 'make2build';
 
 =head1 NAME
@@ -410,13 +410,12 @@ sub write_args {
     my ($args, $INDENT) = @_;
     for my $arg (@$args) {
         # Hash output                       
-        if ($arg =~ /=> \{/o || $arg =~ /=> \[/o) {                            
+        if ($arg =~ /=> [\{\[]/o) {
 	    # Remove redundant parentheses
-	    if ($arg =~ /=> \{/o) {  
-	        $arg =~ s/^\{.*?\n(.*\})\s+\}$/$1/os;
-	    } else {
-	        $arg =~ s/^\{.*?\n(.*\])\s+\}$/$1/os;
-	    }
+	    my $eval = '$arg =~ /=> \{/o';
+	    my $re_eval = qr/(?{ eval $eval ? '\}' : '\]' })/o;                         
+	    $arg =~ s/^\{.*?\n(.*(??{ $re_eval }))\s+\}\s+$/$1/os;
+	    
 	    # One element per each line
 	    my @lines;        
             while ($arg =~ s/^(.*?\n)(.*)$/$2/os) {          
@@ -432,7 +431,7 @@ sub write_args {
 		# Remove additional whitespace
 	        $line =~ s/^\s{$shorten}(.*)$/$1/o;
 		# Add comma where appropriate (version numbers, parentheses)          
-	        $line .= ',' if $line =~ /[\d+\}]$/o;
+	        $line .= ',' if $line =~ /[\d+\}\]]$/o;
 		
 		do_verbose("$INDENT$line\n");
 		print "$INDENT$line\n";
