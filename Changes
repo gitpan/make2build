@@ -1,16 +1,26 @@
 Revision history for Perl script make2build.
 
+0.19 2005/10/13
+ - The obligatory usage screen and according switches have 
+   been introduced.
+ - The verbosity output has been extended to mention the 
+   overriding of arguments and arguments that are classified 
+   as unknown to the user while conversion is in charge.
+ - sort_args() is able to distinguish whether the native
+   sorting order should be preserved or the default one
+   used instead.
+ - do_verbose() outputs based on verbosity levels.
+
 0.18_02 2005/10/12
  - Test failures have been fixed.
  - The code chunk that cleaned args of unneeded whitespace
-   has been replaced with a ?{} & ??{} construct.
+   has been replaced with a ?{} construct.
  - Commas are added to enclosing brackets.
 
 0.18 2005/09/28
  - The conversion & interpretation of arguments which 
    specify temporary files for removement has been implemented. 
    [ Nathan Gray <kolibrie@graystudios.org> ]
-   
  - Array argument conversion has been integrated with included
    string to elements conversion, when necessary. 
 

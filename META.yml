@@ -1,8 +1,8 @@
 --- #YAML:1.0
 name: make2build
-version: 0.18_02
+version: 0.19_01
 author:
-  - Steven Schubiger <sts@accognoscere.org>
+  - Steven Schubiger <schubiger@cpan.org>
 abstract: create a Build.PL derived from Makefile.PL
-license: unknown
+license: perl
 generated_by: Module::Build version 0.2611, without YAML.pm

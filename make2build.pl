@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-our $VERSION = '0.18_02';
+our $VERSION = '0.19_01';
 our $NAME = 'make2build';
 
 =head1 NAME
@@ -10,13 +10,20 @@ make2build - create a Build.PL derived from Makefile.PL
 =head1 SYNOPSIS 
 
  ./make2build.pl    # In the root directory of an 
-                    # ExtUtils::MakeMaker based distribution 
+                    # ExtUtils::MakeMaker based distribution
+		    
+ Usage: ./make2build.pl [switches]
+  -h           help screen
+  -i length    indentation length
+  -n           native ordering of build args
+  -v(v)        verbosity level
+  -V           version 
 
 =head1 DESCRIPTION
 
 C<ExtUtils::MakeMaker> has been a de-facto standard for the common distribution of Perl
 modules; C<Module::Build> is expected to supersede C<ExtUtils::MakeMaker> in some time.
- 
+
 The transition takes place slowly, as the converting process manually achieved 
 is yet an uncommon practice. This F<Makefile.PL> parser is intended to ease the 
 transition process.
@@ -39,14 +46,23 @@ The filename of the Build script. Defaults to F<Build.PL>.
 
 The filename of the MANIFEST file. Defaults to F<MANIFEST>.
 
+=item C<$USE_NATIVE_ORDER>
+
+Native sorting order. If set to 1, the native sorting order of
+the Makefile arguments will be tried to preserve; it's equal to
+using the commandline switch '-n'. Defaults to 0.
+
 =item C<$VERBOSE>
 
-Verbose mode. If set, created Build script will be printed to STDERR.
-Defaults to 0.
+Verbose mode. If set to 1, overridden defaults and skipped arguments
+are printed while converting; if set to 2, output of $VERBOSE=1 and
+created Build script will be printed. Can be set via the commandline 
+switches '-v' (mode 1) and '-vv' (mode 2). Defaults to 0.
 
 =item C<$LEN_INDENT>
 
-Indentation (character width). Defaults to 3.
+Indentation (character width). Can be set via the commandline 
+switch '-i'. Defaults to 3.
 
 =item C<$DD_INDENT>
 
@@ -71,19 +87,20 @@ i.e. HASH -> HASH, etc.
 
  NAME                  module_name
  DISTNAME              dist_name
+ ABSTRACT              dist_abstract
+ AUTHOR                dist_author
  VERSION               dist_version
  VERSION_FROM          dist_version_from
  PREREQ_PM             requires
  PM                    pm_files
  CCFLAGS               extra_compiler_flags
  SIGN                  sign
- ABSTRACT              dist_abstract
- AUTHOR                dist_author
- clean->FILES          add_to_cleanup
+ LICENSE               license
+ clean.FILES           @add_to_cleanup
 
 =item B<default arguments>
 
-C<Module::Build> default arguments may be specified as key / value pairs. 
+C<Module::Build> default arguments may be specified as key/value pairs. 
 Arguments attached to multidimensional structures are unsupported.
 
  recommends	       HASH
@@ -91,17 +108,19 @@ Arguments attached to multidimensional structures are unsupported.
  conflicts	       HASH
  license               unknown
  create_makefile_pl    passthrough
- 
+
 Value may be either a string or of type SCALAR, ARRAY, HASH.
 
 =item B<sorting order>
 
 C<Module::Build> arguments are sorted as enlisted herein. Additional arguments, 
 that don't occur herein, are lower prioritized and will be inserted in 
-unsorted order after preceedeingly sorted arguments.
+unsorted order after preceedingly sorted arguments.
 
  module_name
  dist_name
+ dist_abstract
+ dist_author
  dist_version
  dist_version_from
  requires
@@ -109,12 +128,11 @@ unsorted order after preceedeingly sorted arguments.
  build_requires
  conflicts
  pm_files
+ add_to_cleanup
  extra_compiler_flags
  sign
  license
  create_makefile_pl
- dist_abstract
- dist_author
 
 =item B<begin code>
 
@@ -158,7 +176,7 @@ L<ExtUtils::MakeMaker>, L<Module::Build>, L<http://www.makemaker.org/wiki/index.
 
 =head1 AUTHOR
 
-Steven Schubiger <sts@accognoscere.org>	    
+Steven Schubiger <schubiger@cpan.org>	    
 
 =cut
 
@@ -168,30 +186,29 @@ no warnings 'redefine';
 
 use Data::Dumper;
 use ExtUtils::MakeMaker;
+use Getopt::Long qw(:config no_ignore_case);
 
 our ($MAKEFILE_PL,
      $BUILD_PL,
      $MANIFEST,
      $VERBOSE,
+     $USE_NATIVE_ORDER,
      $LEN_INDENT,
      $DD_INDENT,
      $DD_SORTKEYS,
      $INDENT, 
      %Data);
      
-$MAKEFILE_PL    = 'Makefile.PL';
-$BUILD_PL       = 'Build.PL';
-$MANIFEST	= 'MANIFEST';
-
-$VERBOSE        = 0;
-$LEN_INDENT     = 3;
-
-# Data::Dumper
-$DD_INDENT      = 2;
-$DD_SORTKEYS    = 1;
+$MAKEFILE_PL      = 'Makefile.PL';
+$BUILD_PL         = 'Build.PL';
+$MANIFEST	  = 'MANIFEST';
+$LEN_INDENT       = 3;
+$DD_INDENT        = 2;
+$DD_SORTKEYS      = 1;
 
 *ExtUtils::MakeMaker::WriteMakefile = \&convert;
 
+parse_switches();
 run_makefile();
 
 sub run_makefile {
@@ -201,13 +218,41 @@ sub run_makefile {
 }
 
 sub convert {
-    local %Data; 
+    local %Data;
     get_data();
     print "Converting $MAKEFILE_PL -> $BUILD_PL\n";
     my $args = &build_args;
     $args = output($args);
     create($args);
     add_to_manifest() if -e 'MANIFEST';
+}
+
+sub parse_switches {
+    my %opts;
+    GetOptions(\%opts,'h','i=i','n','v','vv','V') or $opts{h} = 1;
+    if ($opts{v} && $opts{vv}) {
+        print "Can't use both -v and -vv switches\n";
+	$opts{h} = 1;
+    }
+    if ($opts{h}) {
+        print <<"USAGE";
+Usage: $0 [switches]
+  -h           help screen
+  -i length    indentation length
+  -n           native ordering of build args      
+  -v(v)        verbosity level
+  -V           version
+USAGE
+        exit;
+    } elsif ($opts{V}) {
+	print "  $NAME $VERSION\n";
+	exit;
+    }
+    $LEN_INDENT = $opts{i} if $opts{i};
+    $USE_NATIVE_ORDER = $opts{n} || 0;
+    $VERBOSE = 0;
+    $VERBOSE = 1 if $opts{v};
+    $VERBOSE = 2 if $opts{vv};
 }
 
 sub get_data {
@@ -217,7 +262,7 @@ sub get_data {
 	split /#\s+.*\s+-\n/; #  -     
     };
     # superfluosity
-    (undef) = shift @data;         			
+    shift @data;
     chomp $data[-1]; $/ = "\n";
     chomp $data[-1]; 
     
@@ -230,11 +275,11 @@ sub get_data {
     # allow for embedded values such as clean => { FILES => '' }
     foreach my $arg (keys %{$Data{build}}) {
         if (index($arg, '.') > 0) {
-	    my @path = split(/\./, $arg);
+	    my @path = split /\./, $arg;
 	    my $value = $Data{build}->{$arg};
 	    my $current = $Data{build};
 	    while (@path) {
-	        my $key = shift(@path);
+	        my $key = shift @path;
 		$current->{$key} ||= @path ? {} : $value;
 		$current = $current->{$key};
 	    }
@@ -245,9 +290,12 @@ sub get_data {
 sub build_args {
     # Makefile.PL arguments 
     my %make = @_;                         
-    my @build_args = @{insert_args()};      
+    my @build_args = @{insert_args(\%make)}; 
     for my $arg (keys %make) {
-        next unless $Data{build}->{$arg};
+        unless ($Data{build}->{$arg}) {
+	    do_verbose("*** $arg unknown, skipping\n");
+	    next;
+	}
 	# Hash conversion
         if (ref($make{$arg}) eq 'HASH') {                                
 	    if (ref($Data{build}->{$arg}) eq 'HASH') {
@@ -257,7 +305,7 @@ sub build_args {
 		my $value = $make{$arg};
 		push @iterators, iterator($current, $value, keys %$current);
 		while (@iterators) {
-		    my $iterator = shift(@iterators);
+		    my $iterator = shift @iterators;
 		    while (($current, $value) = $iterator->()) {
 			if (ref($current) eq 'HASH') {
 			    push @iterators, iterator($current, $value, keys %$current);
@@ -295,7 +343,7 @@ sub build_args {
 	    warn "Warning: $arg - unknown type of argument\n";
 	}
     }
-    sort_args(\@build_args) if @{$Data{sort_order}};
+    sort_args(\@build_args, \@_) if @{$Data{sort_order}};
     return \@build_args;
 }
 
@@ -304,57 +352,89 @@ sub iterator {
     my $make  = shift;
     my @queue = @_;
     return sub {
-        my $key = shift(@queue) || return;
+        my $key = shift @queue || return;
 	return $build->{$key}, $make->{$key};
     }
 }
 
 sub insert_args {
+    my ($make) = @_;
     my @insert_args;
+    my %build = map { $Data{build}{$_} => $_ } keys %{$Data{build}};
     while (my ($arg, $value) = each %{$Data{default_args}}) {
+        no warnings 'uninitialized';
+        if (exists $make->{$build{$arg}}) {
+	    do_verbose("*** Overriding default \'$arg => $value\'\n");
+	    next;
+	}
         $value = {} if $value eq 'HASH';
 	$value = [] if $value eq 'ARRAY';
 	$value = '' if $value eq 'SCALAR';
-        my %tmphash;
-	$tmphash{$arg} = $value;
-	push @insert_args, \%tmphash;
+	push @insert_args, { $arg => $value };
     }
     return \@insert_args;
 }
 
 sub sort_args {
-    my ($args) = @_;
-    my %sort_order;
+    my ($args, $make_args) = @_;
+    
+    my %native_sortorder;
+    if ($USE_NATIVE_ORDER) {
+	no warnings 'uninitialized';
+        for (my ($i,$s) = 0; $s < @{$make_args}; $s++) {
+	    next unless $s % 2 == 0;
+	    $native_sortorder{$Data{build}{$make_args->[$s]}} = $i
+	      if exists $Data{build}{$make_args->[$s]};
+	    $i++;
+	}
+    } 
+    my %sortorder;
     {
         my %have_args = map { keys %$_ => 1 } @$args;
 	# Filter sort items, that we didn't receive as args,
 	# and map the rest to according array indexes.
-        my $i;
-        %sort_order = map {                             
-            $_ => $i++                                  
-        } grep $have_args{$_}, @{$Data{sort_order}};    
-    }  
+	my $i = 0;
+	if ($USE_NATIVE_ORDER) {
+	    my %slot;
+	    for my $arg (grep $have_args{$_}, @{$Data{sort_order}}) {
+	        if ($native_sortorder{$arg}) {
+	            $sortorder{$arg} = $native_sortorder{$arg};
+		    $slot{$native_sortorder{$arg}} = 1;
+	        } else {
+	            $i++ while $slot{$i};
+		    $sortorder{$arg} = $i++;
+	        }      
+            }
+	    my @args = sort { $sortorder{$a} <=> $sortorder{$b} } keys %sortorder;
+            $i = 0; %sortorder = map { $_ => $i++ } @args;
+	} else {
+	    %sortorder = map { 
+	      $_ => $i++ 
+            } grep $have_args{$_}, @{$Data{sort_order}};
+	}
+    }
     my ($is_sorted, @unsorted);
     do {
         $is_sorted = 1;
           SORT: for (my $i = 0; $i < @$args; $i++) {   
               my ($arg) = keys %{$args->[$i]};
-	      unless (defined $sort_order{$arg}) {
+	      unless (exists $sortorder{$arg}) {
 	          push @unsorted, splice(@$args, $i, 1);
 	          next;
 	      }
-              if ($i != $sort_order{$arg}) {
+              if ($i != $sortorder{$arg}) {
                   $is_sorted = 0;
-                  # Move element $i to pos $Sort_order{$arg}
-		  # and the element at $Sort_order{$arg} to
+                  # Move element $i to pos $sortorder{$arg}
+		  # and the element at $sortorder{$arg} to
 		  # the end. 
 	          push @$args,                              
-		    splice(@$args, $sort_order{$arg}, 1,    
+		    splice(@$args, $sortorder{$arg}, 1,    
 		      splice(@$args, $i, 1));
                   last SORT;    
 	      }
           }
     } until ($is_sorted);
+    
     push @$args, @unsorted;  
 }
 
@@ -399,9 +479,8 @@ sub write_begin {
     my ($INDENT) = @_;  
     $INDENT = substr($INDENT, 0, length($INDENT)-1);
     $Data{begin} =~ s/(\$[A-Z]+)/$1/eeg;
-    
-    do_verbose("\n$BUILD_PL written:\n");
-    do_verbose($Data{begin});  
+    do_verbose("$BUILD_PL written:\n", 2);
+    do_verbose($Data{begin}, 2);  
     print "# Note: this file was auto-generated by $NAME $VERSION\n";
     print $Data{begin};
 }
@@ -412,36 +491,30 @@ sub write_args {
         # Hash output                       
         if ($arg =~ /=> [\{\[]/o) {
 	    # Remove redundant parentheses
-	    my $eval = '$arg =~ /=> \{/o';
-	    my $re_eval = qr/(?{ eval $eval ? '\}' : '\]' })/o;                         
-	    $arg =~ s/^\{.*?\n(.*(??{ $re_eval }))\s+\}\s+$/$1/os;
-	    
+	    my $regex = '$arg =~ /=> \{/o';
+	    $arg =~ s/^\{.*?\n(.*(?{ eval $regex ? '\}' : '\]'}))\s+\}\s+$/$1/osx;
+	    die $@ if $@;
 	    # One element per each line
 	    my @lines;        
-            while ($arg =~ s/^(.*?\n)(.*)$/$2/os) {          
-                push @lines, $1;
-            };
+            push @lines, $1 while $arg =~ s/^(.*?\n)(.*)$/$2/os;         
 	    # Gather whitespace up to hash key in order
 	    # to recreate native Dump() indentation. 
 	    my ($whitespace) = $lines[0] =~ /^(\s+)\w+/o;
 	    my $shorten = length $whitespace;
-	    
             for my $line (@lines) {
 	        chomp $line;
 		# Remove additional whitespace
 	        $line =~ s/^\s{$shorten}(.*)$/$1/o;
 		# Add comma where appropriate (version numbers, parentheses)          
 	        $line .= ',' if $line =~ /[\d+\}\]]$/o;
-		
-		do_verbose("$INDENT$line\n");
+		do_verbose("$INDENT$line\n", 2);
 		print "$INDENT$line\n";
             }
 	} else { # Scalar output                                                 
 	    chomp $arg;
 	    # Remove redundant parentheses
             $arg =~ s/^\{\s+(.*?)\s+\}$/$1/os;
-	    
-	    do_verbose("$INDENT$arg,\n");
+	    do_verbose("$INDENT$arg,\n", 2);
 	    print "$INDENT$arg,\n";
 	}
     }
@@ -451,8 +524,7 @@ sub write_end {
     my ($INDENT) = @_;
     $INDENT = substr($INDENT, 0, length($INDENT)-1);
     $Data{end} =~ s/(\$[A-Z]+)/$1/eeg;
-    
-    do_verbose($Data{end});
+    do_verbose($Data{end}, 2);
     print $Data{end};
 }
 
@@ -463,7 +535,11 @@ sub close_build_pl {
 }
 
 sub do_verbose {
-    print @_ if $VERBOSE;
+    my $level = $_[-1] =~ /^\d{1}$/ ? pop : 1; 
+    if (($VERBOSE && $level == 1) 
+      || ($VERBOSE == 2 && $level == 2)) {
+        print STDOUT @_;
+    }
 }
 
 sub add_to_manifest {
@@ -500,6 +576,7 @@ PREREQ_PM             requires
 PM                    pm_files
 CCFLAGS               extra_compiler_flags
 SIGN                  sign
+LICENSE               license
 clean.FILES           @add_to_cleanup
  
 # default arguments 
@@ -534,12 +611,12 @@ create_makefile_pl
 
 use Module::Build;
 
-my $b = Module::Build->new
+my $build = Module::Build->new
 $INDENT(
 # end code 
 -
 $INDENT);
   
-$b->create_build_script;
+$build->create_build_script;
 
 1;

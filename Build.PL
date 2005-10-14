@@ -2,18 +2,18 @@
 
 use Module::Build;
 
-my $b = Module::Build->new
+my $build = Module::Build->new
   (
    module_name => 'make2build',
+   dist_author => 'Steven Schubiger <schubiger@cpan.org>',
    dist_version_from => 'make2build.pl',
    requires => {},
    recommends => {},
    build_requires => {},
    conflicts => {},
-   license => 'unknown',
-   create_makefile_pl => 'passthrough',
-   dist_author => 'Steven Schubiger <sts@accognoscere.org>',
    add_to_cleanup => [],
+   license => 'perl',
+   create_makefile_pl => 'passthrough',
   );
   
-$b->create_build_script;
+$build->create_build_script;
